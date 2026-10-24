@@ -1,4 +1,5 @@
-<!doctype html>
+ .
+ <!doctype html>
 <html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="utf-8" />
@@ -9,9 +10,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script>
-    // Antes de pintar: o tema salvo e se o aparelho é de toque (mostra o controle na tela)
-    try { const theme = localStorage.getItem('snake.theme'); if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme } catch {}
-    if (matchMedia('(pointer: coarse)').matches) document.documentElement.classList.add('has-touch')
+    // Antes de pintar: se o aparelho é de toque (mostra o controle na tela e fica
+    // sempre no tema escuro) e, no desktop, o tema salvo
+    if (matchMedia('(pointer: coarse)').matches) {
+      document.documentElement.classList.add('has-touch')
+    } else {
+      try { const theme = localStorage.getItem('snake.theme'); if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme } catch {}
+    }
   </script>
   <style>
     /* Cores do tema Vuetify do portfólio (src/plugins/vuetify.ts) */
@@ -23,6 +28,7 @@
       --muted: rgba(200, 230, 201, 0.5);
       --glow: 0 0 12px rgba(0, 255, 65, 0.45);
       --veil: rgba(0, 0, 0, 0.6);
+      --food: #00FFFF;
       /* Peças do controle de toque (sandbox/satelite.html) */
       --pad-bg: rgba(255, 255, 255, 0.08);
       --pad-line: rgba(255, 255, 255, 0.18);
@@ -37,6 +43,7 @@
       --muted: rgba(28, 43, 30, 0.55);
       --glow: none;
       --veil: rgba(241, 255, 244, 0.8);
+      --food: #1565C0;
       --pad-bg: rgba(27, 94, 32, 0.06);
       --pad-line: rgba(27, 94, 32, 0.22);
     }
@@ -73,13 +80,13 @@
         max(12px, env(safe-area-inset-bottom))
         max(16px, env(safe-area-inset-left));
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto minmax(0, 1fr) auto auto;
       grid-template-areas:
-        "top top"
-        "board board"
-        "dir act"
-        "help help";
+        "top"
+        "board"
+        "dir"
+        "help";
     }
 
     /* Celular em pé: campo nos 60% de cima, direcional no centro dos 40% de baixo
@@ -89,9 +96,9 @@
         grid-template-rows: auto minmax(0, 1fr) calc(40vh - max(12px, env(safe-area-inset-bottom)));
         grid-template-rows: auto minmax(0, 1fr) calc(40dvh - max(12px, env(safe-area-inset-bottom)));
         grid-template-areas:
-          "top top"
-          "board board"
-          "pad pad";
+          "top"
+          "board"
+          "pad";
       }
       .has-touch .pad-dir {
         grid-area: pad;
@@ -99,29 +106,25 @@
         align-self: center;
         margin-top: 0;
       }
-      .has-touch .pad-act {
-        grid-area: pad;
-        justify-self: end;
-        align-self: end;
-        margin-top: 0;
-      }
       .has-touch .dpad { width: min(56vw, 28vh, 220px); }
     }
 
-    /* Celular ou tablet deitado: direcional à esquerda, botões à direita */
+    /* Celular ou tablet deitado: direcional à esquerda e os botões redondos
+       ao lado do campo (embaixo dele roubariam a altura, que já é pouca) */
     @media (orientation: landscape) {
       .has-touch .app {
         max-width: none;
         column-gap: 16px;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr);
         grid-template-rows: auto minmax(0, 1fr);
         grid-template-areas:
-          "top top top"
-          "dir board act";
+          "top top"
+          "dir board";
       }
       .has-touch .top { margin-bottom: 8px; }
-      .has-touch .pad-dir,
-      .has-touch .pad-act { margin-top: 0; justify-self: center; }
+      .has-touch .pad-dir { margin-top: 0; justify-self: center; }
+      .has-touch .board-col { flex-direction: row; align-items: flex-end; }
+      .has-touch .board-actions { margin: 0 0 0 10px; flex-direction: column; }
     }
 
     /* ── Topo: nome, botões e placar ─────────────────────────── */
@@ -215,6 +218,35 @@
       color: var(--muted);
     }
 
+    /* Celular: o placar vira um chip só com o score, ao lado de uma caixinha
+       igual à comida da cobra (mesma cor, brilho e pulsar) */
+    .food-box {
+      display: block;
+      width: 12px;
+      height: 12px;
+      background: var(--food);
+      box-shadow: 0 0 10px var(--food);
+      animation: food-pulse 1.5s ease-in-out infinite;
+    }
+
+    .has-touch .score .label,
+    .has-touch .score-best { display: none; }
+
+    .has-touch .score-main {
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px 6px 12px;
+      border: 1px solid rgba(var(--primary), 0.25);
+      border-radius: 999px;
+      background: rgba(var(--primary), 0.06);
+    }
+
+    .has-touch #score {
+      min-width: 1ch;
+      font-size: 20px;
+      line-height: 1;
+    }
+
     /* ── Campo ───────────────────────────────────────────────── */
     .board-wrap {
       grid-area: board;
@@ -223,6 +255,54 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    /* O campo e, no celular, a fileira de botões redondos colada nele */
+    .board-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .board-actions {
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .round-btn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      border: 2px solid var(--pad-line);
+      border-radius: 50%;
+      background: var(--pad-bg);
+      color: var(--text);
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 0.05s, background 0.05s;
+    }
+
+    .round-btn[hidden] { display: none; }
+    .round-btn:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 2px; }
+
+    .round-btn.on {
+      background: rgb(var(--primary));
+      border-color: rgb(var(--primary));
+      color: var(--on-primary);
+      transform: scale(0.92);
+    }
+
+    .round-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .board {
@@ -292,6 +372,40 @@
       color: rgb(var(--primary));
     }
 
+    /* O overlay deixa os toques passarem para o campo; o botão é a exceção */
+    .overlay .share-btn {
+      pointer-events: auto;
+      margin-top: 16px;
+      min-height: 44px;
+      padding: 0 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: rgb(var(--primary));
+      background: rgba(var(--primary), 0.08);
+      border: 1px solid rgba(var(--primary), 0.4);
+      border-radius: 999px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .overlay .share-btn[hidden],
+    .has-touch .overlay .share-btn { display: none; }
+    .overlay .share-btn:hover { background: rgba(var(--primary), 0.16); }
+    .overlay .share-btn:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 2px; }
+
+    .overlay .share-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .overlay .cta {
       margin-top: 18px;
       font-family: var(--font-mono);
@@ -303,20 +417,9 @@
     /* ── Controle de toque (peças do sandbox/controle-pecas.js) ── */
     .pad-dir {
       grid-area: dir;
-      justify-self: start;
+      justify-self: center;
       align-self: center;
       margin-top: 16px;
-    }
-
-    .pad-act {
-      grid-area: act;
-      justify-self: end;
-      align-self: center;
-      margin-top: 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
     }
 
     /* Setas: a direção sai do ângulo do dedo em relação ao centro */
@@ -352,31 +455,6 @@
     .dpad [data-dir="right"] { grid-area: 2 / 3; }
     .dpad [data-dir="down"] { grid-area: 3 / 2; }
 
-    .pad-btn {
-      padding: 0;
-      font-family: var(--font-body);
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      border: 2px solid var(--pad-line);
-      background: var(--pad-bg);
-      color: var(--text);
-      touch-action: none;
-      transition: transform 0.05s, background 0.05s;
-    }
-
-    .pad-btn.pill {
-      width: 86px;
-      height: 32px;
-      border-radius: 999px;
-      font-size: 12px;
-    }
-
-    .pad-btn.on {
-      background: rgb(var(--primary));
-      color: var(--on-primary);
-      transform: scale(0.92);
-    }
-
     /* ── Ajuda do teclado (desktop) ──────────────────────────── */
     .help {
       grid-area: help;
@@ -400,6 +478,10 @@
     @keyframes blink { 50% { opacity: 0; } }
     @keyframes pulse { 50% { opacity: 0.35; } }
     @keyframes pop { 40% { transform: scale(1.35); } }
+    @keyframes food-pulse {
+      0%, 100% { transform: scale(0.89); }
+      50% { transform: scale(1.11); }
+    }
     @keyframes shake {
       20% { transform: translateX(-6px); }
       40% { transform: translateX(5px); }
@@ -408,7 +490,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .logo .cursor, #score.pop, .board.shake, .overlay .cta { animation: none; }
+      .logo .cursor, #score.pop, .board.shake, .overlay .cta, .food-box { animation: none; }
     }
   </style>
 </head>
@@ -418,35 +500,42 @@
       <div class="brand">
         <span class="logo">&gt; snake<span class="cursor">_</span></span>
         <button class="icon-btn" id="soundBtn" type="button"></button>
-        <button class="icon-btn" id="themeBtn" type="button"></button>
+        <button class="icon-btn desk-only" id="themeBtn" type="button"></button>
         <button class="icon-btn desk-only" id="pauseBtn" type="button"></button>
       </div>
       <div class="score">
-        <div class="score-main"><span class="label">score</span><span id="score">0</span></div>
+        <div class="score-main"><span class="label">score</span><span class="food-box touch-only" aria-hidden="true"></span><span id="score">0</span></div>
         <div class="score-best"><span class="label">recorde</span> <span id="best">0</span></div>
       </div>
     </header>
 
     <div class="board-wrap" id="boardWrap">
-      <div class="board" id="board">
-        <canvas id="canvas" role="img" aria-label="Campo do jogo"></canvas>
-        <div class="overlay" id="overlay" data-state="ready">
-          <div class="panel" data-for="ready">
-            <h1>SNAKE</h1>
-            <p class="desk-only">setas, WASD ou clique no campo</p>
-            <p class="touch-only">toque no campo ou use o direcional</p>
-            <p class="cta"><span class="desk-only">espaço ou clique para começar</span><span class="touch-only">toque para começar</span></p>
+      <div class="board-col" id="boardCol">
+        <div class="board" id="board">
+          <canvas id="canvas" role="img" aria-label="Campo do jogo"></canvas>
+          <div class="overlay" id="overlay" data-state="ready">
+            <div class="panel" data-for="ready">
+              <h1>SNAKE</h1>
+              <p class="desk-only">setas, WASD ou clique no campo</p>
+              <p class="touch-only">toque no campo ou use o direcional</p>
+              <p class="cta"><span class="desk-only">espaço ou clique para começar</span><span class="touch-only">toque para começar</span></p>
+            </div>
+            <div class="panel" data-for="paused">
+              <h2>PAUSADO</h2>
+              <p class="cta"><span class="desk-only">P ou espaço para continuar</span><span class="touch-only">toque para continuar</span></p>
+            </div>
+            <div class="panel" data-for="over">
+              <h2 id="overTitle">GAME OVER</h2>
+              <p class="final">score <b id="finalScore">0</b></p>
+              <p class="record" id="newRecord" hidden>novo recorde!</p>
+              <button class="share-btn" id="shareBtn" type="button" hidden></button>
+              <p class="cta"><span class="desk-only">espaço ou clique para jogar de novo</span><span class="touch-only">toque para jogar de novo</span></p>
+            </div>
           </div>
-          <div class="panel" data-for="paused">
-            <h2>PAUSADO</h2>
-            <p class="cta"><span class="desk-only">P ou espaço para continuar</span><span class="touch-only">toque para continuar</span></p>
-          </div>
-          <div class="panel" data-for="over">
-            <h2 id="overTitle">GAME OVER</h2>
-            <p class="final">score <b id="finalScore">0</b></p>
-            <p class="record" id="newRecord" hidden>novo recorde!</p>
-            <p class="cta"><span class="desk-only">espaço ou clique para jogar de novo</span><span class="touch-only">toque para jogar de novo</span></p>
-          </div>
+        </div>
+        <div class="board-actions touch-only" id="boardActions">
+          <button class="round-btn" id="shareRound" type="button" hidden></button>
+          <button class="round-btn" id="pauseRound" type="button"></button>
         </div>
       </div>
     </div>
@@ -458,10 +547,6 @@
         <span data-dir="right">▶</span>
         <span data-dir="down">▼</span>
       </div>
-    </div>
-
-    <div class="pad-act touch-only">
-      <button class="pad-btn pill" id="btnStart" type="button">START</button>
     </div>
 
     <p class="help desk-only">
@@ -481,10 +566,14 @@
     const scoreEl = $('score')
     const bestEl = $('best')
     const dpad = $('dpad')
-    const btnStart = $('btnStart')
+    const boardCol = $('boardCol')
+    const boardActions = $('boardActions')
+    const shareRound = $('shareRound')
+    const pauseRound = $('pauseRound')
     const soundBtn = $('soundBtn')
     const themeBtn = $('themeBtn')
     const pauseBtn = $('pauseBtn')
+    const shareBtn = $('shareBtn')
 
     // localStorage pode não existir ou estar bloqueado (aba anônima, cookies desligados)
     const store = {
@@ -511,8 +600,8 @@
     const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' }
 
     const PALETTES = {
-      dark: { board: [11, 16, 12], primary: [0, 255, 65], food: '#00FFFF', ring: [0, 255, 255], grid: 'rgba(0,255,65,0.06)', eye: '#000000' },
-      light: { board: [255, 255, 255], primary: [27, 94, 32], food: '#1565C0', ring: [21, 101, 192], grid: 'rgba(27,94,32,0.07)', eye: '#FFFFFF' },
+      dark: { board: [11, 16, 12], primary: [0, 255, 65], food: '#00FFFF', ring: [0, 255, 255], grid: 'rgba(0,255,65,0.06)', eye: '#000000', page: '#0A0A0A', muted: 'rgba(200,230,201,0.55)' },
+      light: { board: [255, 255, 255], primary: [27, 94, 32], food: '#1565C0', ring: [21, 101, 192], grid: 'rgba(27,94,32,0.07)', eye: '#FFFFFF', page: '#F1FFF4', muted: 'rgba(28,43,30,0.55)' },
     }
 
     const ICONS = {
@@ -522,6 +611,8 @@
       moon: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>',
       pause: '<svg viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>',
       play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+      share: '<svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>',
+      download: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>',
     }
 
     let state = 'ready' // ready | playing | paused | over
@@ -538,6 +629,10 @@
     let newBest = false
     let tick = START_TICK
     let boost = 0       // 1 logo depois de comer, cai até 0
+    let playTime = 0    // ms jogando na partida (sem contar as pausas)
+    let finalImage = null // imagem do fim da partida (PNG), para compartilhar
+    let finalName = 'snake.png'
+    let shotId = 0      // descarta imagem que ficou pronta depois de uma partida nova começar
     let acc = 0
     let progress = 0
     let lastTime = 0
@@ -656,6 +751,7 @@
       newBest = false
       tick = START_TICK
       boost = 0
+      playTime = 0
       acc = 0
       progress = 0
       foods = []
@@ -684,6 +780,8 @@
     }
 
     function startGame(startDir) {
+      shotId++
+      finalImage = null
       reset(startDir)
       state = 'playing'
       sound.start()
@@ -708,6 +806,9 @@
     }
 
     function gameOver(won = false) {
+      // Acaba quando a cabeça termina de chegar na casa: o último quadro é o do passo completo
+      progress = 1
+      makeFinalImage(won) // antes de mudar o estado, para a cobra sair acesa
       state = 'over'
       overAt = performance.now()
       target = null
@@ -813,9 +914,14 @@
     const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`
     const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`
 
-    // Campo quadrado, com casas inteiras e nítido em tela retina
+    // Campo quadrado, com casas inteiras e nítido em tela retina. No celular, a
+    // fileira de botões redondos fica colada no campo: desconta o espaço dela
     function resize() {
-      const fit = Math.min(boardWrap.clientWidth, boardWrap.clientHeight)
+      const actions = boardActions.getClientRects().length ? getComputedStyle(boardActions) : null
+      const beside = !!actions && getComputedStyle(boardCol).flexDirection === 'row'
+      const extraW = beside ? boardActions.offsetWidth + (parseFloat(actions.marginLeft) || 0) : 0
+      const extraH = actions && !beside ? boardActions.offsetHeight + (parseFloat(actions.marginTop) || 0) : 0
+      const fit = Math.min(boardWrap.clientWidth - extraW, boardWrap.clientHeight - extraH)
       size = Math.max(COLS * 6, Math.floor(fit / COLS) * COLS)
       cell = size / COLS
       board.style.width = board.style.height = size + 'px'
@@ -824,13 +930,12 @@
       ctx?.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
     }
 
-    // Uma casa da cobra, presa na grade
-    function fillCell(p, inset) {
-      ctx.fillRect(p.x * cell + inset, p.y * cell + inset, cell - inset * 2, cell - inset * 2)
-    }
-
-    function draw(now) {
+    // Desenha o campo na tela do jogo ou, no game over, na imagem final
+    function draw(now, view = { ctx, size, cell, ratio: pixelRatio }) {
+      const { ctx, size, cell, ratio } = view
       const P = PALETTES[root.dataset.theme === 'light' ? 'light' : 'dark']
+      // Uma casa da cobra, presa na grade
+      const fillCell = (p, inset) => ctx.fillRect(p.x * cell + inset, p.y * cell + inset, cell - inset * 2, cell - inset * 2)
 
       ctx.fillStyle = rgb(P.board)
       ctx.fillRect(0, 0, size, size)
@@ -866,7 +971,7 @@
       // o tempo todo, quadro a quadro, e chega a zero quando o rabo sai da casa
       const n = snake.length
       // Um respiro fino entre as partes, em pixels inteiros da tela para ficar nítido
-      const inset = Math.max(1, Math.round(cell * pixelRatio * 0.03)) / pixelRatio
+      const inset = Math.max(1, Math.round(cell * ratio * 0.03)) / ratio
       ctx.globalAlpha = state === 'over' ? 0.45 : 1
 
       // Body
@@ -915,6 +1020,120 @@
       ctx.globalAlpha = 1
     }
 
+    // ── Imagem do fim da partida ──────────────────────────────
+    // Vai ser compartilhada sozinha, sem texto junto, então tudo fica dentro dela:
+    // o último quadro do jogo, o score, o tempo jogando e o recorde.
+    const SHOT_W = 1080 // 4:5, formato que apps de conversa e redes mostram inteiro
+    const SHOT_H = 1350
+    const MONO = '"Roboto Mono", ui-monospace, monospace'
+
+    function formatTime(ms) {
+      const total = Math.floor(ms / 1000)
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+    }
+
+    function roundRect(g, x, y, w, h, r) {
+      g.beginPath()
+      g.moveTo(x + r, y)
+      g.arcTo(x + w, y, x + w, y + h, r)
+      g.arcTo(x + w, y + h, x, y + h, r)
+      g.arcTo(x, y + h, x, y, r)
+      g.arcTo(x, y, x + w, y, r)
+      g.closePath()
+    }
+
+    function makeFinalImage(won) {
+      finalImage = null
+      const id = ++shotId
+      try {
+        const dark = root.dataset.theme !== 'light'
+        const P = PALETTES[dark ? 'dark' : 'light']
+        const shot = document.createElement('canvas')
+        shot.width = SHOT_W
+        shot.height = SHOT_H
+        const g = shot.getContext('2d')
+        if (!g) return
+
+        g.fillStyle = P.page
+        g.fillRect(0, 0, SHOT_W, SHOT_H)
+
+        // Topo: o nome do jogo e como a partida acabou
+        g.textBaseline = 'alphabetic'
+        g.textAlign = 'left'
+        g.font = `500 44px ${MONO}`
+        g.fillStyle = rgb(P.primary)
+        g.fillText('> snake_', 60, 112)
+        g.textAlign = 'right'
+        g.font = `500 30px ${MONO}`
+        g.fillStyle = P.muted
+        g.fillText(won ? 'ZEROU!' : 'GAME OVER', SHOT_W - 60, 108)
+
+        // O campo no último quadro, redesenhado em alta resolução, com moldura e brilho
+        const bx = 60
+        const by = 160
+        const bs = 960
+        g.save()
+        g.shadowColor = rgba(P.primary, dark ? 0.18 : 0.08)
+        g.shadowBlur = 60
+        g.fillStyle = rgb(P.board)
+        roundRect(g, bx, by, bs, bs, 16)
+        g.fill()
+        g.restore()
+
+        g.save()
+        roundRect(g, bx, by, bs, bs, 16)
+        g.clip()
+        g.translate(bx, by)
+        draw(performance.now(), { ctx: g, size: bs, cell: bs / COLS, ratio: 1 })
+        g.restore()
+
+        g.strokeStyle = rgba(P.primary, 0.25)
+        g.lineWidth = 2
+        roundRect(g, bx + 1, by + 1, bs - 2, bs - 2, 15)
+        g.stroke()
+
+        // Os números da partida
+        const record = score > best
+        const stats = [
+          ['SCORE', String(score), 220, 84],
+          ['TEMPO', formatTime(playTime), 540, 64],
+          ['RECORDE', String(Math.max(best, score)), 860, 64],
+        ]
+        g.textAlign = 'center'
+        for (const [label, value, x, px] of stats) {
+          g.font = `500 26px ${MONO}`
+          g.fillStyle = P.muted
+          g.fillText(label, x, 1196)
+          g.font = `500 ${px}px ${MONO}`
+          g.fillStyle = rgb(P.primary)
+          if (dark) {
+            g.shadowColor = rgba(P.primary, 0.5)
+            g.shadowBlur = 24
+          }
+          g.fillText(value, x, 1282)
+          g.shadowBlur = 0
+        }
+        if (record) {
+          g.font = `500 24px ${MONO}`
+          g.fillText('novo recorde!', 860, 1324)
+        }
+
+        const name = `snake-${score}.png`
+        shot.toBlob(blob => {
+          if (!blob || id !== shotId) return
+          finalName = name
+          try {
+            finalImage = new File([blob], name, { type: 'image/png' })
+          } catch {
+            finalImage = blob // navegador sem File: o Blob ainda serve para baixar
+          }
+          syncShare()
+        }, 'image/png')
+      } catch {
+        finalImage = null // sem a imagem, o game over segue normal
+      }
+    }
+
     function frame(now) {
       // Agenda o próximo quadro antes de tudo: um erro aqui não congela o jogo
       requestAnimationFrame(frame)
@@ -922,6 +1141,7 @@
       lastTime = now
 
       if (state === 'playing') {
+        playTime += dt
         boost = Math.max(0, boost - dt / BOOST_MS)
         const stepTime = tick * (1 - BOOST * boost)
         acc += dt
@@ -929,7 +1149,7 @@
           acc -= stepTime
           step()
         }
-        progress = acc / stepTime
+        if (state === 'playing') progress = acc / stepTime
       }
 
       // Cresceu: o apagar se ajusta aos poucos, sem o corpo piscar
@@ -968,7 +1188,61 @@
       setIcon(soundBtn, sound.muted ? 'soundOff' : 'soundOn', sound.muted ? 'Ligar o som (M)' : 'Desligar o som (M)')
       setIcon(themeBtn, dark ? 'sun' : 'moon', dark ? 'Tema claro' : 'Tema escuro')
       setIcon(pauseBtn, state === 'paused' ? 'play' : 'pause', state === 'paused' ? 'Continuar (P)' : 'Pausar (P)')
+      // A bolinha do celular também começa e recomeça: fora do jogo ela mostra o play
+      setIcon(pauseRound, state === 'playing' ? 'pause' : 'play', state === 'playing' ? 'Pausar' : state === 'paused' ? 'Continuar' : 'Jogar')
       $('themeColor').content = dark ? '#0A0A0A' : '#F1FFF4'
+      syncShare()
+    }
+
+    // ── Compartilhar a imagem do fim da partida ───────────────
+    function canShareFile(file) {
+      try {
+        return file instanceof File && !!navigator.canShare?.({ files: [file] })
+      } catch {
+        return false
+      }
+    }
+
+    // O botão só aparece no game over e com a imagem pronta. Onde o navegador
+    // não compartilha arquivos (Firefox no desktop, por exemplo), ele baixa a imagem.
+    function syncShare() {
+      const ready = state === 'over' && !!finalImage
+      shareBtn.hidden = shareRound.hidden = !ready
+      if (!ready) return
+      const share = canShareFile(finalImage)
+      const label = share ? 'Compartilhar a imagem da partida' : 'Baixar a imagem da partida'
+      shareBtn.innerHTML = `${ICONS[share ? 'share' : 'download']}<span>${share ? 'compartilhar' : 'baixar imagem'}</span>`
+      shareBtn.setAttribute('aria-label', label)
+      setIcon(shareRound, share ? 'share' : 'download', label)
+    }
+
+    function downloadImage(blob, name) {
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      document.body.append(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    }
+
+    // Manda só a imagem, sem texto nem link junto
+    async function shareFinalImage() {
+      const image = finalImage
+      if (!image) return
+      if (canShareFile(image)) {
+        try {
+          await navigator.share({ files: [image] })
+          return
+        } catch (err) {
+          if (err?.name === 'AbortError') return // a pessoa fechou a janela de compartilhar
+          // Outra falha (permissão, app de destino): baixa a imagem no lugar
+        }
+      }
+      try {
+        downloadImage(image, finalName)
+      } catch {}
     }
 
     function toggleMute() {
@@ -1089,22 +1363,38 @@
       })
     }
 
-    // START: pausa e continua (fora do jogo, começa)
-    btnStart.addEventListener('pointerdown', e => {
-      e.preventDefault()
+    // Bolinhas do celular, embaixo do campo: pausar/jogar e compartilhar
+    pauseRound.addEventListener('click', () => {
+      pauseRound.blur()
       vibrate(8)
-      btnStart.classList.add('on')
       if (state === 'playing' || state === 'paused') togglePause()
       else primary()
     })
 
-    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
-      btnStart.addEventListener(type, () => btnStart.classList.remove('on'))
+    shareRound.addEventListener('click', () => {
+      shareRound.blur()
+      vibrate(8)
+      shareFinalImage()
+    })
+
+    for (const btn of [pauseRound, shareRound]) {
+      btn.addEventListener('pointerdown', () => btn.classList.add('on'))
+      for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+        btn.addEventListener(type, () => btn.classList.remove('on'))
+      }
     }
 
     // Botões do topo (blur: o espaço depois do clique não aperta o botão de novo)
     soundBtn.addEventListener('click', () => { soundBtn.blur(); toggleMute() })
     themeBtn.addEventListener('click', () => { themeBtn.blur(); toggleTheme() })
+
+    // O toque no compartilhar não pode chegar no campo, que recomeçaria a partida
+    shareBtn.addEventListener('pointerdown', e => e.stopPropagation())
+    shareBtn.addEventListener('click', e => {
+      e.stopPropagation()
+      shareBtn.blur()
+      shareFinalImage()
+    })
     pauseBtn.addEventListener('click', () => {
       pauseBtn.blur()
       if (state === 'playing' || state === 'paused') togglePause()
@@ -1118,11 +1408,15 @@
 
     // Tocou na tela: mostra o controle de toque (notebook com tela touch, por exemplo)
     window.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'touch') root.classList.add('has-touch')
+      if (e.pointerType !== 'touch' || root.classList.contains('has-touch')) return
+      root.classList.add('has-touch')
+      root.dataset.theme = 'dark' // no toque é sempre o tema escuro
+      syncUI()
+      resize() // a fileira de botões apareceu: o campo encolhe para caber
     }, { capture: true, passive: true })
 
     document.addEventListener('contextmenu', e => {
-      if (e.target.closest('.board, .pad-dir, .pad-act')) e.preventDefault()
+      if (e.target.closest('.board, .pad-dir, .board-actions')) e.preventDefault()
     })
 
     // Saiu da aba ou da janela: pausa sozinho
@@ -1138,11 +1432,12 @@
     Object.defineProperty(window, '__snake', {
       value: Object.freeze({
         snapshot: () => ({
-          state, dir, score, best, tick, boost, size, cell,
+          state, dir, score, best, tick, boost, size, cell, playTime,
           target: target && { ...target },
           snake: snake.map(s => ({ ...s })),
           foods: foods.map(f => ({ ...f })),
         }),
+        finalImage: () => finalImage,
       }),
     })
 
