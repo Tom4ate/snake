@@ -1,5 +1,4 @@
- .
- <!doctype html>
+<!doctype html>
 <html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="utf-8" />
@@ -214,7 +213,33 @@
       text-shadow: var(--glow);
     }
 
-    #score.pop { animation: pop 0.3s ease-out; }
+    #score.pop,
+    #colors.pop { animation: pop 0.3s ease-out; }
+
+    /* Quantas cores a cobra pegou na partida, com a bolinha na cor atual dela */
+    .colors-group {
+      margin-left: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .color-dot {
+      display: block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--snake, rgb(var(--primary)));
+      box-shadow: 0 0 10px var(--snake, rgb(var(--primary)));
+    }
+
+    #colors {
+      display: inline-block;
+      font-size: 20px;
+      font-weight: 500;
+      color: rgb(var(--primary));
+      text-shadow: var(--glow);
+    }
 
     .score-best {
       margin-top: 2px;
@@ -250,6 +275,14 @@
       font-size: 20px;
       line-height: 1;
     }
+
+    .has-touch .colors-group {
+      margin-left: 0;
+      padding-left: 10px;
+      border-left: 1px solid rgba(var(--primary), 0.25);
+    }
+
+    .has-touch #colors { line-height: 1; }
 
     /* ── Campo ───────────────────────────────────────────────── */
     .board-wrap {
@@ -494,7 +527,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .logo .cursor, #score.pop, .board.shake, .overlay .cta, .food-box { animation: none; }
+      .logo .cursor, #score.pop, #colors.pop, .board.shake, .overlay .cta, .food-box { animation: none; }
     }
   </style>
 </head>
@@ -508,7 +541,10 @@
         <button class="icon-btn desk-only" id="pauseBtn" type="button"></button>
       </div>
       <div class="score">
-        <div class="score-main"><span class="label">score</span><span class="food-box touch-only" aria-hidden="true"></span><span id="score">0</span></div>
+        <div class="score-main">
+          <span class="label">score</span><span class="food-box touch-only" aria-hidden="true"></span><span id="score">0</span>
+          <span class="colors-group" title="Cores que a cobra pegou"><span class="label">cores</span><span class="color-dot" aria-hidden="true"></span><span id="colors">0</span></span>
+        </div>
         <div class="score-best"><span class="label">recorde</span> <span id="best">0</span></div>
       </div>
     </header>
@@ -569,6 +605,7 @@
     const overlay = $('overlay')
     const scoreEl = $('score')
     const bestEl = $('best')
+    const colorsEl = $('colors')
     const dpad = $('dpad')
     const boardCol = $('boardCol')
     const boardActions = $('boardActions')
@@ -600,6 +637,15 @@
     const BOOST = 0.3         // impulso ao comer: até 30% mais rápido...
     const BOOST_MS = 800      // ...voltando ao normal aos poucos em 0,8 s
 
+    // Comida especial
+    const SPECIAL_EVERY = 10      // aparece a cada 10 pontos
+    const SPECIAL_REACT_MS = 2200 // dura o tempo de reagir...
+    const SPECIAL_PER_CELL = 1.5  // ...mais 1,5x o tempo de andar até ela pelo caminho mais curto
+    const SPECIAL_MIN_MS = 3000
+    const SPECIAL_MAX_MS = 6000
+    const SPECIAL_MIN_DIST = 5    // nunca nasce colada na cabeça
+    const PULSE_MS = 900          // cada anel do pulso leva 0,9 s para sumir (3 anéis defasados)
+
     const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
     const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' }
 
@@ -607,6 +653,21 @@
       dark: { board: [11, 16, 12], primary: [0, 255, 65], food: '#00FFFF', ring: [0, 255, 255], grid: 'rgba(0,255,65,0.06)', eye: '#000000', page: '#0A0A0A', muted: 'rgba(200,230,201,0.55)' },
       light: { board: [255, 255, 255], primary: [27, 94, 32], food: '#1565C0', ring: [21, 101, 192], grid: 'rgba(27,94,32,0.07)', eye: '#FFFFFF', page: '#F1FFF4', muted: 'rgba(28,43,30,0.55)' },
     }
+
+    // Cores que a cobra pode ganhar com a comida especial (a primeira é o verde do
+    // começo). Nenhuma some no fundo nem se confunde com a comida comum; cada uma
+    // tem a versão do tema escuro e a do claro
+    const SNAKE_COLORS = [
+      { dark: [0, 255, 65], light: [27, 94, 32] },      // verde
+      { dark: [255, 43, 214], light: [194, 24, 91] },   // magenta
+      { dark: [255, 159, 28], light: [230, 81, 0] },    // laranja
+      { dark: [255, 230, 0], light: [158, 120, 0] },    // amarelo
+      { dark: [255, 77, 77], light: [198, 40, 40] },    // vermelho
+      { dark: [160, 102, 255], light: [106, 27, 154] }, // roxo
+      { dark: [61, 155, 255], light: [0, 105, 92] },    // azul (no claro, petróleo: o azul é da comida)
+      { dark: [240, 240, 240], light: [66, 66, 66] },   // branco (no claro, grafite)
+    ]
+    const colorOf = c => SNAKE_COLORS[c][root.dataset.theme === 'light' ? 'light' : 'dark']
 
     const ICONS = {
       soundOn: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
@@ -626,6 +687,9 @@
     let dir = 'right'
     let queue = []
     let foods = []
+    let special = null  // comida especial no campo: { x, y, c, total, left }
+    let snakeColor = 0  // cor das casas que a cabeça acende (índice em SNAKE_COLORS)
+    let colorsCount = 0 // cores pegas na partida
     let target = null   // ponto tocado/clicado que a cobra tenta seguir
     let effects = []
     let score = 0
@@ -731,6 +795,12 @@
           tone(392, 0, 0.12, 'sine', 0.6)
           tone(523.25, 0.08, 0.16, 'sine', 0.6)
         },
+        // Comida especial: um brilho subindo, diferente de todos os outros sons
+        special() {
+          [783.99, 987.77, 1174.66, 1567.98].forEach((freq, i) => tone(freq, i * 0.045, 0.2, 'triangle', 0.5))
+          tone(392, 0, 0.32, 'sine', 0.45, 784)
+          tone(1567.98, 0.2, 0.5, 'sine', 0.3, 2093)
+        },
         over() {
           tone(392, 0, 0.2, 'triangle', 0.7)
           tone(329.63, 0.16, 0.2, 'triangle', 0.7)
@@ -744,7 +814,7 @@
       const cx = Math.floor(COLS / 2)
       const cy = Math.floor(ROWS / 2)
       const d = DIRS[startDir]
-      snake = [0, 1, 2, 3].map(i => ({ x: cx - d.x * i, y: cy - d.y * i }))
+      snake = [0, 1, 2, 3].map(i => ({ x: cx - d.x * i, y: cy - d.y * i, c: 0 }))
       fadeLen = snake.length
       lastHead = { ...snake[0] }
       dir = startDir
@@ -758,23 +828,55 @@
       playTime = 0
       acc = 0
       progress = 0
+      special = null
+      snakeColor = 0
+      colorsCount = 0
       foods = []
       fillFoods()
       updateScore()
     }
 
-    // Uma comida nova numa casa livre (fora da cobra e das outras comidas)
-    function placeFood() {
-      const taken = (x, y) => snake.some(s => s.x === x && s.y === y) || foods.some(f => f.x === x && f.y === y)
+    // Casas sem cobra, sem comida e sem a comida especial
+    function freeCells() {
+      const taken = (x, y) => snake.some(s => s.x === x && s.y === y) ||
+        foods.some(f => f.x === x && f.y === y) ||
+        (!!special && special.x === x && special.y === y)
       const free = []
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
           if (!taken(x, y)) free.push({ x, y })
         }
       }
+      return free
+    }
+
+    // Uma comida nova numa casa livre
+    function placeFood() {
+      const free = freeCells()
       if (!free.length) return false
       foods.push(free[Math.floor(Math.random() * free.length)])
       return true
+    }
+
+    // Menor número de passos entre duas casas, contando os portais
+    function travel(a, b) {
+      const dx = Math.abs(a.x - b.x)
+      const dy = Math.abs(a.y - b.y)
+      return Math.min(dx, COLS - dx) + Math.min(dy, ROWS - dy)
+    }
+
+    // A comida especial nasce longe da cabeça, com uma cor diferente da atual da
+    // cobra, e dura o tempo de reagir mais um pouco além do caminho até ela
+    function spawnSpecial() {
+      const free = freeCells()
+      if (!free.length) return
+      const far = free.filter(p => travel(p, snake[0]) >= SPECIAL_MIN_DIST)
+      const pool = far.length ? far : free
+      const spot = pool[Math.floor(Math.random() * pool.length)]
+      const colors = SNAKE_COLORS.map((_, i) => i).filter(i => i !== snakeColor)
+      const total = Math.min(SPECIAL_MAX_MS, Math.max(SPECIAL_MIN_MS,
+        SPECIAL_REACT_MS + travel(spot, snake[0]) * tick * SPECIAL_PER_CELL))
+      special = { ...spot, c: colors[Math.floor(Math.random() * colors.length)], total, left: total }
     }
 
     function fillFoods() {
@@ -895,9 +997,10 @@
       if (body.some(s => s.x === x && s.y === y)) return gameOver()
 
       lastHead = { ...snake[0] }
-      snake.unshift({ x, y })
+      snake.unshift({ x, y, c: snakeColor })
       if (grows) eat(eaten)
       else snake.pop()
+      if (state === 'playing' && special && special.x === x && special.y === y) eatSpecial()
     }
 
     function eat(index) {
@@ -907,11 +1010,29 @@
       tick = Math.max(MIN_TICK, tick - TICK_STEP)
       boost = 1
       sound.eat(score)
-      if (score % 10 === 0) sound.milestone()
+      if (score % SPECIAL_EVERY === 0) {
+        sound.milestone()
+        if (!special) spawnSpecial()
+      }
       updateScore(true)
       fillFoods()
       // Sem casa livre e sem comida: a cobra ocupou o campo todo
       if (!foods.length) gameOver(true)
+    }
+
+    // Comida especial: a cabeça troca de cor na hora; o resto da cobra só fica da
+    // cor nova conforme a cabeça acende casas novas (as antigas apagam com a cor delas)
+    function eatSpecial() {
+      const { x, y, c } = special
+      special = null
+      snakeColor = c
+      snake[0].c = c
+      colorsCount++
+      boost = 1
+      effects.push({ x, y, r: 0.5, alpha: 1, c, speed: 2 })
+      sound.special()
+      vibrate(30)
+      updateScore(false, true)
     }
 
     // ── Desenho ───────────────────────────────────────────────
@@ -962,10 +1083,32 @@
       }
       ctx.shadowBlur = 0
 
-      // Eat effects
+      // Comida especial: bolinha da cor que a cobra vai ganhar, encolhendo com o
+      // tempo que falta e soltando pulsos sem parar
+      if (special) {
+        const col = colorOf(special.c)
+        const life = Math.max(0, special.left / special.total)
+        const age = special.total - special.left
+        const cx = (special.x + 0.5) * cell
+        const cy = (special.y + 0.5) * cell
+        const r = cell * (0.16 + 0.3 * life)
+        ctx.lineWidth = Math.max(1, cell * 0.06)
+        for (let k = 0; k < 3; k++) {
+          const phase = (age / PULSE_MS + k / 3) % 1
+          ctx.strokeStyle = rgba(col, 0.55 * (1 - phase))
+          ctx.beginPath(); ctx.arc(cx, cy, r + phase * cell * 1.2, 0, Math.PI * 2); ctx.stroke()
+        }
+        ctx.fillStyle = rgb(col)
+        ctx.shadowColor = rgb(col)
+        ctx.shadowBlur = cell * 0.8
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
+        ctx.shadowBlur = 0
+      }
+
+      // Eat effects (na cor da comida especial, quando é ela)
       ctx.lineWidth = 2
       for (const e of effects) {
-        ctx.strokeStyle = rgba(P.ring, e.alpha)
+        ctx.strokeStyle = rgba(e.c != null ? colorOf(e.c) : P.ring, e.alpha)
         ctx.beginPath(); ctx.arc((e.x + 0.5) * cell, (e.y + 0.5) * cell, e.r * cell, 0, Math.PI * 2); ctx.stroke()
       }
 
@@ -982,7 +1125,7 @@
       for (let i = n - 1; i >= 1; i--) {
         const alpha = 0.9 * (1 - (i + progress) / fadeLen)
         if (alpha <= 0.01) continue
-        ctx.fillStyle = rgba(P.primary, alpha)
+        ctx.fillStyle = rgba(colorOf(snake[i].c), alpha) // cada casa com a cor com que acendeu
         fillCell(snake[i], inset)
       }
 
@@ -1004,8 +1147,9 @@
         }
       }
 
-      ctx.fillStyle = rgb(P.primary)
-      ctx.shadowColor = rgb(P.primary)
+      const headColor = rgb(colorOf(snake[0].c))
+      ctx.fillStyle = headColor
+      ctx.shadowColor = headColor
       ctx.shadowBlur = cell * 0.9
       for (const head of heads) fillCell(head, inset)
       ctx.shadowBlur = 0
@@ -1099,19 +1243,20 @@
         // Os números da partida
         const record = score > best
         const stats = [
-          ['SCORE', String(score), 220, 84],
-          ['TEMPO', formatTime(playTime), 540, 64],
-          ['RECORDE', String(Math.max(best, score)), 860, 64],
+          ['SCORE', String(score), 180, 84, P.primary],
+          ['CORES', String(colorsCount), 420, 64, colorOf(snakeColor)],
+          ['TEMPO', formatTime(playTime), 660, 64, P.primary],
+          ['RECORDE', String(Math.max(best, score)), 900, 64, P.primary],
         ]
         g.textAlign = 'center'
-        for (const [label, value, x, px] of stats) {
+        for (const [label, value, x, px, color] of stats) {
           g.font = `500 26px ${MONO}`
           g.fillStyle = P.muted
           g.fillText(label, x, 1196)
           g.font = `500 ${px}px ${MONO}`
-          g.fillStyle = rgb(P.primary)
+          g.fillStyle = rgb(color)
           if (dark) {
-            g.shadowColor = rgba(P.primary, 0.5)
+            g.shadowColor = rgba(color, 0.5)
             g.shadowBlur = 24
           }
           g.fillText(value, x, 1282)
@@ -1119,7 +1264,8 @@
         }
         if (record) {
           g.font = `500 24px ${MONO}`
-          g.fillText('novo recorde!', 860, 1324)
+          g.fillStyle = rgb(P.primary)
+          g.fillText('novo recorde!', 900, 1324)
         }
 
         const name = `snake-${score}.png`
@@ -1154,6 +1300,15 @@
           step()
         }
         if (state === 'playing') progress = acc / stepTime
+
+        // A comida especial vai encolhendo até sumir (só conta o tempo jogando)
+        if (special && state === 'playing') {
+          special.left -= dt
+          if (special.left <= 0) {
+            effects.push({ x: special.x, y: special.y, r: 0.4, alpha: 0.6, c: special.c })
+            special = null
+          }
+        }
       }
 
       // Cresceu: o apagar se ajusta aos poucos, sem o corpo piscar
@@ -1161,7 +1316,7 @@
 
       for (let i = effects.length - 1; i >= 0; i--) {
         const e = effects[i]
-        e.r += dt * 0.012
+        e.r += dt * 0.012 * (e.speed || 1)
         e.alpha -= dt * 0.0028
         if (e.alpha <= 0) effects.splice(i, 1)
       }
@@ -1170,14 +1325,24 @@
     }
 
     // ── Interface ─────────────────────────────────────────────
-    function updateScore(pop = false) {
+    function updateScore(pop = false, popColors = false) {
       scoreEl.textContent = score
       bestEl.textContent = Math.max(best, score)
-      if (pop) {
-        scoreEl.classList.remove('pop')
-        void scoreEl.offsetWidth
-        scoreEl.classList.add('pop')
-      }
+      colorsEl.textContent = colorsCount
+      syncSnakeColor()
+      if (pop) bump(scoreEl)
+      if (popColors) bump(colorsEl)
+    }
+
+    function bump(el) {
+      el.classList.remove('pop')
+      void el.offsetWidth
+      el.classList.add('pop')
+    }
+
+    // A bolinha do contador de cores fica na cor atual da cobra
+    function syncSnakeColor() {
+      root.style.setProperty('--snake', rgb(colorOf(snakeColor)))
     }
 
     function setIcon(button, icon, label) {
@@ -1195,6 +1360,7 @@
       // A bolinha do celular também começa e recomeça: fora do jogo ela mostra o play
       setIcon(pauseRound, state === 'playing' ? 'pause' : 'play', state === 'playing' ? 'Pausar' : state === 'paused' ? 'Continuar' : 'Jogar')
       $('themeColor').content = dark ? '#0A0A0A' : '#F1FFF4'
+      syncSnakeColor()
       syncShare()
     }
 
@@ -1440,6 +1606,8 @@
           target: target && { ...target },
           snake: snake.map(s => ({ ...s })),
           foods: foods.map(f => ({ ...f })),
+          special: special && { ...special },
+          snakeColor, colors: colorsCount,
         }),
         finalImage: () => finalImage,
       }),
