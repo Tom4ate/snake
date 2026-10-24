@@ -629,8 +629,8 @@
 
     const COLS = 20
     const ROWS = 20
-    const START_TICK = 130    // ms por casa no começo
-    const MIN_TICK = 65
+    const START_TICK = 142    // ms por casa no começo
+    const MIN_TICK = 72       // o mais rápido que ela chega
     const TICK_STEP = 2       // cada comida deixa um pouco mais rápido
     const RESTART_DELAY = 450 // não recomeça sem querer logo depois de perder
     const FOOD_COUNT = 3      // comidas no campo ao mesmo tempo
@@ -655,8 +655,8 @@
     }
 
     // Cores que a cobra pode ganhar com a comida especial (a primeira é o verde do
-    // começo). Nenhuma some no fundo nem se confunde com a comida comum; cada uma
-    // tem a versão do tema escuro e a do claro
+    // começo), cada uma com a versão do tema escuro e a do claro. Todas têm contraste
+    // de pelo menos 3,5:1 com o fundo nos dois temas e ficam longe da cor da comida comum
     const SNAKE_COLORS = [
       { dark: [0, 255, 65], light: [27, 94, 32] },      // verde
       { dark: [255, 43, 214], light: [194, 24, 91] },   // magenta
@@ -666,8 +666,29 @@
       { dark: [160, 102, 255], light: [106, 27, 154] }, // roxo
       { dark: [61, 155, 255], light: [0, 105, 92] },    // azul (no claro, petróleo: o azul é da comida)
       { dark: [240, 240, 240], light: [66, 66, 66] },   // branco (no claro, grafite)
+      { dark: [255, 121, 178], light: [216, 27, 96] },  // rosa
+      { dark: [255, 127, 80], light: [191, 54, 12] },   // coral
+      { dark: [190, 255, 0], light: [104, 140, 0] },    // limão
+      { dark: [196, 160, 255], light: [126, 87, 194] }, // lavanda
+      { dark: [255, 196, 150], light: [173, 96, 70] },  // pêssego
+      { dark: [110, 110, 255], light: [57, 29, 140] },  // índigo
+      { dark: [160, 170, 185], light: [96, 125, 139] }, // prata
+      { dark: [205, 30, 70], light: [136, 14, 79] },    // vinho
+      { dark: [150, 255, 190], light: [0, 121, 80] },   // menta
+      { dark: [255, 200, 60], light: [170, 125, 0] },   // ouro
+      { dark: [215, 145, 80], light: [141, 85, 36] },   // caramelo
+      { dark: [235, 140, 255], light: [142, 36, 170] }, // lilás
+      { dark: [170, 180, 70], light: [107, 112, 0] },   // oliva
     ]
     const colorOf = c => SNAKE_COLORS[c][root.dataset.theme === 'light' ? 'light' : 'dark']
+
+    // A próxima cor tem que ser bem diferente da atual (distância no RGB, nos dois
+    // temas), para a troca sempre aparecer: laranja nunca vira coral, por exemplo
+    const MIN_COLOR_GAP = 90
+    const rgbGap = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+    const colorGap = (a, b) => Math.min(
+      rgbGap(SNAKE_COLORS[a].dark, SNAKE_COLORS[b].dark),
+      rgbGap(SNAKE_COLORS[a].light, SNAKE_COLORS[b].light))
 
     const ICONS = {
       soundOn: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
@@ -865,7 +886,7 @@
       return Math.min(dx, COLS - dx) + Math.min(dy, ROWS - dy)
     }
 
-    // A comida especial nasce longe da cabeça, com uma cor diferente da atual da
+    // A comida especial nasce longe da cabeça, com uma cor bem diferente da atual da
     // cobra, e dura o tempo de reagir mais um pouco além do caminho até ela
     function spawnSpecial() {
       const free = freeCells()
@@ -873,7 +894,9 @@
       const far = free.filter(p => travel(p, snake[0]) >= SPECIAL_MIN_DIST)
       const pool = far.length ? far : free
       const spot = pool[Math.floor(Math.random() * pool.length)]
-      const colors = SNAKE_COLORS.map((_, i) => i).filter(i => i !== snakeColor)
+      const others = SNAKE_COLORS.map((_, i) => i).filter(i => i !== snakeColor)
+      const distinct = others.filter(i => colorGap(i, snakeColor) >= MIN_COLOR_GAP)
+      const colors = distinct.length ? distinct : others
       const total = Math.min(SPECIAL_MAX_MS, Math.max(SPECIAL_MIN_MS,
         SPECIAL_REACT_MS + travel(spot, snake[0]) * tick * SPECIAL_PER_CELL))
       special = { ...spot, c: colors[Math.floor(Math.random() * colors.length)], total, left: total }
