@@ -8,7 +8,11 @@
   <title>Snake</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- A fonte não pode travar a página: se a requisição ao Google ficar pendurada
+       (rede móvel, VPN, DNS privado), a página aparece com a fonte do sistema e troca
+       para a Roboto quando ela chegar. media="print" baixa sem bloquear a pintura. -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" /></noscript>
   <script>
     // Antes de pintar: se o aparelho é de toque (mostra o controle na tela e fica
     // sempre no tema escuro) e, no desktop, o tema salvo
